@@ -1,0 +1,1640 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YearPlan — Visual Year Planner</title>
+    <meta name="description" content="YearPlan — drag &‑drop visual planner for any 12‑month cycle. Build, save and export timelines. Runs fully in your browser — no server required.">
+    <link rel="icon" href="favicon.svg" type="image/svg+xml">
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            display: flex;
+            height: 100vh;
+            background-color: #f4f5f7;
+            overflow: hidden;
+        }
+
+        #sidebar {
+            width: 18vw;
+            min-width: 220px;
+            background: #ffffff;
+            border-right: 1px solid #e2e8f0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.02);
+            z-index: 20;
+        }
+
+        h2 {
+            margin-top: 0;
+            font-size: 1rem;
+            color: #1e293b;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-bottom: 25px;
+        }
+
+        input[type="text"] {
+            padding: 10px;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            font-size: 0.85rem;
+        }
+
+        button.btn-add {
+            padding: 10px;
+            background: #0f172a;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            font-size: 0.85rem;
+        }
+
+        button.btn-add:hover {
+            background: #334155;
+        }
+
+        .color-picker {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 25px;
+        }
+
+        .color-btn {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            border: 2px solid transparent;
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+
+        .color-btn:hover {
+            transform: scale(1.1);
+        }
+
+        .color-btn.active {
+            border-color: #0f172a;
+            transform: scale(1.1);
+        }
+
+        #unscheduled-list {
+            flex: 1;
+            overflow-y: auto;
+            border: 2px dashed #cbd5e1;
+            padding: 10px;
+            border-radius: 6px;
+            background: #f8fafc;
+        }
+
+        #timeline-focus-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            overflow: hidden;
+            background: #f8fafc;
+        }
+
+        .instructions-banner {
+            font-size: 0.8rem;
+            color: #64748b;
+            margin-bottom: 15px;
+            background: #fff;
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid #e2e8f0;
+        }
+
+        #grid-scroll-container {
+            flex: 1;
+            overflow-x: auto;
+            overflow-y: auto;
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            position: relative;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.01);
+        }
+
+        #sticky-months-header {
+            display: flex;
+            position: sticky;
+            top: 0;
+            background: #ffffff;
+            border-bottom: 1px solid #e2e8f0;
+            z-index: 15;
+            height: 40px;
+        }
+
+        .header-month {
+            flex-shrink: 0;
+            text-align: center;
+            line-height: 40px;
+            font-weight: 600;
+            color: #475569;
+            font-size: 0.85rem;
+            border-right: 1px solid #e2e8f0;
+            box-sizing: border-box;
+        }
+
+        .header-month.context-month {
+            background: #f8fafc;
+            color: #94a3b8;
+            font-weight: 500;
+        }
+
+        #grid-canvas {
+            display: flex;
+            position: relative;
+            min-height: calc(100% - 40px);
+        }
+
+        .grid-month-column {
+            flex-shrink: 0;
+            border-right: 1px solid #f1f5f9;
+            box-sizing: border-box;
+            position: relative;
+        }
+
+        .grid-month-column.context-month {
+            background: rgba(248, 250, 252, 0.7);
+        }
+
+        .task {
+            padding: 10px 12px;
+            margin: 5px 0;
+            color: #1e293b;
+            font-weight: 600;
+            font-size: 0.8rem;
+            border-radius: 6px;
+            cursor: grab;
+            user-select: none;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.04);
+            box-sizing: border-box;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            transition: outline 0.1s, opacity 0.1s;
+            opacity: 0.86;
+        }
+
+        .task:active {
+            cursor: grabbing;
+        }
+
+        .task.selected {
+            outline: 2px solid #0f172a;
+            outline-offset: 1px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+            z-index: 10 !important;
+            opacity: 0.96;
+        }
+
+        .task.on-timeline {
+            position: absolute;
+            height: 38px;
+            margin: 0;
+            resize: horizontal;
+            min-width: 40px;
+            z-index: 5;
+        }
+
+        #inline-color-palette {
+            position: fixed;
+            display: none;
+            gap: 6px;
+            padding: 6px 8px;
+            background: rgba(255, 255, 255, 0.92);
+            border: 1px solid #e2e8f0;
+            border-radius: 999px;
+            box-shadow: 0 6px 18px rgba(15, 23, 42, 0.12);
+            z-index: 9999;
+            backdrop-filter: blur(6px);
+        }
+
+        .inline-color-btn {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            border: 2px solid transparent;
+            cursor: pointer;
+            transition: transform 0.1s;
+            box-sizing: border-box;
+        }
+
+        .inline-color-btn:hover {
+            transform: scale(1.12);
+        }
+
+        .inline-color-btn.active {
+            border-color: #0f172a;
+        }
+
+        #macro-wheel-panel {
+            width: 28vw;
+            min-width: 320px;
+            background: #ffffff;
+            border-left: 1px solid #e2e8f0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            box-shadow: -2px 0 10px rgba(0,0,0,0.02);
+            z-index: 20;
+            position: relative;
+        }
+
+        #wheel-wrapper {
+            position: relative;
+            width: 100%;
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        #chart-controls {
+            position: absolute;
+            display: flex;
+            gap: 5px;
+            align-items: center;
+            z-index: 35;
+        }
+
+        #chart-select {
+            width: 112px;
+            height: 28px;
+            border: 1px solid #e2e8f0;
+            border-radius: 999px;
+            background: rgba(255,255,255,0.92);
+            color: #334155;
+            font-size: 0.75rem;
+            padding: 0 8px;
+            outline: none;
+            box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+        }
+
+        .wheel-symbol-btn,
+        #wheel-reset-btn {
+            width: 30px;
+            height: 30px;
+            border: 1px solid #e2e8f0;
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 999px;
+            cursor: pointer;
+            font-size: 1rem;
+            color: #334155;
+            z-index: 30;
+            box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+            line-height: 1;
+        }
+
+        #wheel-reset-btn {
+            position: absolute;
+        }
+
+        .wheel-symbol-btn:hover,
+        #wheel-reset-btn:hover {
+            background: #f8fafc;
+            transform: scale(1.05);
+        }
+
+        #wheel-svg,
+        #wheel-static-overlay {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+        }
+
+        #wheel-rotating-group {
+            transform-origin: 0 0;
+            transition: transform 0.15s cubic-bezier(0.1, 0.8, 0.2, 1);
+        }
+
+        /* Buy Me a Coffee floating button (privacy-friendly link) */
+        #bmc-donate {
+            position: fixed;
+            right: 18px;
+            bottom: 18px;
+            z-index: 99999;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            background: linear-gradient(90deg,#ffdd57,#ffbf47);
+            color: #111827;
+            font-weight: 700;
+            border-radius: 999px;
+            box-shadow: 0 6px 18px rgba(15,23,42,0.12);
+            text-decoration: none;
+            border: 1px solid rgba(0,0,0,0.06);
+            font-size: 0.9rem;
+            transition: transform 0.12s ease, box-shadow 0.12s ease;
+            -webkit-font-smoothing:antialiased;
+        }
+        #bmc-donate:hover { transform: translateY(-3px); box-shadow: 0 10px 24px rgba(15,23,42,0.16); }
+    </style>
+
+    <script>
+      (function(){
+        const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'>
+        <circle cx='50' cy='50' r='44' fill='#0f172a'/>
+        <path d='M50 6 A44 44 0 0 1 86 50 L50 50 Z' fill='#a8d1e7'/>
+        <circle cx='50' cy='50' r='12' fill='#ffffff'/>
+    </svg>`;
+        const link = document.createElement('link');
+        link.rel = 'icon';
+        link.href = 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
+        document.head.appendChild(link);
+      })();
+    </script>
+
+</head>
+<body>
+
+    <div id="sidebar">
+        <h2>1. Create Target</h2>
+        <div class="input-group">
+            <input type="text" id="task-name" placeholder="E.g., Autumn project" />
+            <button class="btn-add" onclick="handleAddTaskClick()">Add to Pool</button>
+        </div>
+
+        <h2>2. System Tone</h2>
+        <div class="color-picker" id="colors"></div>
+
+        <h2>3. Floating Pool</h2>
+        <div id="unscheduled-list" ondragover="allowDrop(event)" ondrop="drop(event)"></div>
+    </div>
+
+    <div id="timeline-focus-area">
+        <div class="instructions-banner">
+            💡 <strong>Academic year:</strong> July → June, with 3 context months before and after.
+            <strong>Reset</strong> shows the core 12 months.
+            <strong>Ctrl + Scroll</strong> zooms; zoom out further to see all 18 months.
+            <strong>Ctrl + Drag</strong> to copy.
+            <strong>Click</strong> a block to select/change colour.
+            <strong>Delete</strong> removes, <strong>Enter</strong> renames.
+        </div>
+
+        <div id="grid-scroll-container">
+            <div id="sticky-months-header"></div>
+            <div id="grid-canvas" ondragover="allowDrop(event)" ondrop="drop(event)"></div>
+        </div>
+    </div>
+
+    <div id="macro-wheel-panel">
+        <div id="wheel-wrapper">
+            <div id="chart-controls">
+                <select id="chart-select" title="Charts"></select>
+                <button class="wheel-symbol-btn" title="New chart" onclick="createNewChart()">+</button>
+                <button class="wheel-symbol-btn" title="Save chart to file" onclick="downloadActiveChart()">💾</button>
+                <button class="wheel-symbol-btn" title="Load chart from file" onclick="triggerLoadChart()">📂</button>
+                <button class="wheel-symbol-btn" title="Delete current chart" onclick="deleteActiveChart()">🗑</button>
+                <input id="chart-file-input" type="file" accept=".json,application/json" style="display:none">
+            </div>
+
+            <button id="wheel-reset-btn" title="Reset to full academic year" onclick="resetGridToFullYear()">↺</button>
+
+            <svg id="wheel-svg">
+                <g id="wheel-rotating-group"></g>
+            </svg>
+            <svg id="wheel-static-overlay"></svg>
+        </div>
+    </div>
+
+    <!-- Floating privacy-friendly BuyMeACoffee link (opens your public page) -->
+    <a id="bmc-donate" href="https://www.buymeacoffee.com/flostroehl" target="_blank" rel="noopener noreferrer" title="Support — buy me a coffee ☕">
+        ☕ Buy me a coffee
+    </a>
+
+    <script>
+        const colors = [
+            'rgb(168, 209, 231)',
+            'rgb(255, 179, 186)',
+            'rgb(186, 255, 201)',
+            'rgb(255, 223, 186)',
+            'rgb(214, 170, 255)'
+        ];
+
+        const CHART_REGISTRY_KEY = 'academic_year_wheel_chart_registry_context18_v3';
+        const ACTIVE_CHART_KEY = 'academic_year_wheel_active_chart_context18_v3';
+
+        const TOTAL_MONTHS = 18;
+        const ACTIVE_START_INDEX = 3;
+        const ACTIVE_MONTHS = 12;
+        const ACTIVE_END_INDEX = ACTIVE_START_INDEX + ACTIVE_MONTHS;
+
+        const monthEntries = [
+            { label: 'Apr', segment: 'prior' },
+            { label: 'May', segment: 'prior' },
+            { label: 'Jun', segment: 'prior' },
+
+            { label: 'Jul', segment: 'active' },
+            { label: 'Aug', segment: 'active' },
+            { label: 'Sep', segment: 'active' },
+            { label: 'Oct', segment: 'active' },
+            { label: 'Nov', segment: 'active' },
+            { label: 'Dec', segment: 'active' },
+            { label: 'Jan', segment: 'active' },
+            { label: 'Feb', segment: 'active' },
+            { label: 'Mar', segment: 'active' },
+            { label: 'Apr', segment: 'active' },
+            { label: 'May', segment: 'active' },
+            { label: 'Jun', segment: 'active' },
+
+            { label: 'Jul', segment: 'post' },
+            { label: 'Aug', segment: 'post' },
+            { label: 'Sep', segment: 'post' }
+        ];
+
+        const activeMonthLabels = ['Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
+
+        let charts = [];
+        let activeChartId = null;
+
+        let taskCounter = 0;
+        let currentColor = colors[0];
+        let currentViewBoxRadius = 150;
+        let baseMonthWidth = 180;
+
+        let overlayBands = {
+            inner: { inner: 20, outer: 46 },
+            main: { inner: 48, outer: 120 },
+            outer: { inner: 138, outer: 170 }
+        };
+
+        const scrollContainer = document.getElementById('grid-scroll-container');
+
+        function getDataKey(chartId) {
+            return `academic_year_wheel_data_context18_v3_${chartId}`;
+        }
+
+        function getCounterKey(chartId) {
+            return `academic_year_wheel_counter_context18_v3_${chartId}`;
+        }
+
+        function getMinMonthWidth() {
+            return scrollContainer.clientWidth / TOTAL_MONTHS;
+        }
+
+        function getResetMonthWidth() {
+            return scrollContainer.clientWidth / ACTIVE_MONTHS;
+        }
+
+        function getMaxMonthWidth() {
+            return Math.max(getMinMonthWidth(), scrollContainer.clientWidth / 1.5);
+        }
+
+        function makeChartId() {
+            return 'chart-' + Date.now() + '-' + Math.floor(Math.random() * 100000);
+        }
+
+        function saveChartRegistry() {
+            localStorage.setItem(CHART_REGISTRY_KEY, JSON.stringify(charts));
+            localStorage.setItem(ACTIVE_CHART_KEY, activeChartId);
+        }
+
+        function renderChartSelect() {
+            const select = document.getElementById('chart-select');
+            select.innerHTML = '';
+
+            charts.forEach(chart => {
+                const opt = document.createElement('option');
+                opt.value = chart.id;
+                opt.textContent = chart.name;
+                select.appendChild(opt);
+            });
+
+            select.value = activeChartId;
+        }
+
+        function initCharts() {
+            const savedRegistry = localStorage.getItem(CHART_REGISTRY_KEY);
+            const savedActive = localStorage.getItem(ACTIVE_CHART_KEY);
+
+            if (savedRegistry) {
+                charts = JSON.parse(savedRegistry);
+                activeChartId = savedActive || charts[0]?.id;
+            } else {
+                const firstChart = {
+                    id: makeChartId(),
+                    name: 'Academic Year 1'
+                };
+
+                charts = [firstChart];
+                activeChartId = firstChart.id;
+                saveChartRegistry();
+            }
+
+            if (!charts.length) {
+                const fallback = { id: makeChartId(), name: 'Academic Year 1' };
+                charts = [fallback];
+                activeChartId = fallback.id;
+                saveChartRegistry();
+            }
+
+            renderChartSelect();
+
+            baseMonthWidth = getResetMonthWidth();
+            loadAllTasks();
+            setTimeout(resetGridToFullYear, 50);
+        }
+
+        document.getElementById('chart-select').addEventListener('change', function() {
+            saveAllTasks();
+            activeChartId = this.value;
+            saveChartRegistry();
+            loadAllTasks();
+            setTimeout(resetGridToFullYear, 20);
+        });
+
+        function createNewChart() {
+            saveAllTasks();
+
+            const name = prompt('New chart name:', `Academic Year ${charts.length + 1}`);
+            if (name === null) return;
+
+            const chart = {
+                id: makeChartId(),
+                name: name.trim() || `Academic Year ${charts.length + 1}`
+            };
+
+            charts.push(chart);
+            activeChartId = chart.id;
+            taskCounter = 0;
+
+            localStorage.setItem(getDataKey(activeChartId), JSON.stringify([]));
+            localStorage.setItem(getCounterKey(activeChartId), '0');
+
+            saveChartRegistry();
+            renderChartSelect();
+            loadAllTasks();
+            resetGridToFullYear();
+        }
+
+        function deleteActiveChart() {
+            if (!activeChartId) return;
+
+            const chart = charts.find(c => c.id === activeChartId);
+            const chartName = chart?.name || 'this chart';
+
+            const ok = confirm(
+                `Delete "${chartName}"?\n\nThis will permanently delete the current chart from this browser. This cannot be undone unless you have saved it to a file.`
+            );
+
+            if (!ok) return;
+
+            localStorage.removeItem(getDataKey(activeChartId));
+            localStorage.removeItem(getCounterKey(activeChartId));
+
+            charts = charts.filter(c => c.id !== activeChartId);
+
+            if (charts.length === 0) {
+                const fallback = {
+                    id: makeChartId(),
+                    name: 'Academic Year 1'
+                };
+
+                charts.push(fallback);
+                activeChartId = fallback.id;
+                taskCounter = 0;
+
+                localStorage.setItem(getDataKey(activeChartId), JSON.stringify([]));
+                localStorage.setItem(getCounterKey(activeChartId), '0');
+            } else {
+                activeChartId = charts[0].id;
+            }
+
+            saveChartRegistry();
+            renderChartSelect();
+            loadAllTasks();
+            resetGridToFullYear();
+        }
+
+        function serializeCurrentTasks() {
+            const allTasks = [];
+
+            document.querySelectorAll('.task').forEach(task => {
+                allTasks.push({
+                    id: task.id,
+                    name: task.innerText,
+                    color: task.style.backgroundColor,
+                    onTimeline: task.classList.contains('on-timeline'),
+                    left: task.style.left,
+                    top: task.style.top,
+                    width: task.style.width,
+                    startPct: task.dataset.startPct,
+                    durationPct: task.dataset.durationPct,
+                    timelineMonths: TOTAL_MONTHS
+                });
+            });
+
+            return allTasks;
+        }
+
+        function normalizeTaskData(t) {
+            const copy = { ...t };
+
+            const originalMonths = parseFloat(copy.timelineMonths || 12);
+            let startPct = parseFloat(copy.startPct || 0);
+            let durPct = parseFloat(copy.durationPct || 0);
+
+            if (originalMonths !== TOTAL_MONTHS && copy.onTimeline) {
+                const oldStartMonths = startPct * originalMonths;
+                const oldDurMonths = durPct * originalMonths;
+
+                const newStartMonths = ACTIVE_START_INDEX + oldStartMonths;
+                const newDurMonths = oldDurMonths;
+
+                copy.startPct = newStartMonths / TOTAL_MONTHS;
+                copy.durationPct = newDurMonths / TOTAL_MONTHS;
+                copy.timelineMonths = TOTAL_MONTHS;
+            }
+
+            return copy;
+        }
+
+        function downloadActiveChart() {
+            saveAllTasks();
+
+            const chart = charts.find(c => c.id === activeChartId);
+            const payload = {
+                version: 5,
+                type: 'academic-year-wheel-context18',
+                exportedAt: new Date().toISOString(),
+                chart: {
+                    name: chart?.name || 'Academic Year',
+                    id: activeChartId
+                },
+                timelineMonths: TOTAL_MONTHS,
+                activeStartIndex: ACTIVE_START_INDEX,
+                activeMonths: ACTIVE_MONTHS,
+                taskCounter,
+                tasks: serializeCurrentTasks()
+            };
+
+            const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+
+            const a = document.createElement('a');
+            const safeName = (chart?.name || 'academic_year').replace(/[^a-z0-9-_]+/gi, '_').toLowerCase();
+
+            a.href = url;
+            a.download = `${safeName}.json`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+
+            URL.revokeObjectURL(url);
+        }
+
+        function triggerLoadChart() {
+            document.getElementById('chart-file-input').click();
+        }
+
+        document.getElementById('chart-file-input').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+
+            reader.onload = function() {
+                try {
+                    saveAllTasks();
+
+                    const parsed = JSON.parse(reader.result);
+                    const importedTasksRaw = Array.isArray(parsed) ? parsed : parsed.tasks;
+
+                    if (!Array.isArray(importedTasksRaw)) {
+                        alert('Could not load chart: invalid file.');
+                        return;
+                    }
+
+                    const importedTasks = importedTasksRaw.map(normalizeTaskData);
+                    const importedName = parsed.chart?.name || file.name.replace(/\.json$/i, '') || `Academic Year ${charts.length + 1}`;
+
+                    const chart = {
+                        id: makeChartId(),
+                        name: importedName
+                    };
+
+                    charts.push(chart);
+                    activeChartId = chart.id;
+
+                    taskCounter = parsed.taskCounter || 0;
+
+                    importedTasks.forEach(t => {
+                        const match = String(t.id || '').match(/task-(\d+)/);
+                        if (match) taskCounter = Math.max(taskCounter, parseInt(match[1], 10));
+                    });
+
+                    localStorage.setItem(getDataKey(activeChartId), JSON.stringify(importedTasks));
+                    localStorage.setItem(getCounterKey(activeChartId), String(taskCounter));
+
+                    saveChartRegistry();
+                    renderChartSelect();
+                    loadAllTasks();
+                    resetGridToFullYear();
+
+                } catch (err) {
+                    alert('Could not load chart: invalid JSON.');
+                } finally {
+                    e.target.value = '';
+                }
+            };
+
+            reader.readAsText(file);
+        });
+
+        const colorContainer = document.getElementById('colors');
+
+        function setCurrentColor(color) {
+            currentColor = color;
+
+            document.querySelectorAll('#colors .color-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.color === color);
+            });
+        }
+
+        function applyColorToTask(task, color) {
+            if (!task) return;
+
+            task.style.backgroundColor = color;
+            setCurrentColor(color);
+
+            saveAllTasks();
+            renderMacroWheel();
+        }
+
+        colors.forEach(color => {
+            const btn = document.createElement('div');
+            btn.className = 'color-btn';
+            btn.dataset.color = color;
+            btn.style.backgroundColor = color;
+
+            if (color === currentColor) btn.classList.add('active');
+
+            btn.onclick = e => {
+                e.stopPropagation();
+
+                const activeTask = document.querySelector('.task.selected');
+                setCurrentColor(color);
+
+                if (activeTask) {
+                    applyColorToTask(activeTask, color);
+                    showInlinePaletteForTask(activeTask);
+                }
+            };
+
+            colorContainer.appendChild(btn);
+        });
+
+        const inlinePalette = document.createElement('div');
+        inlinePalette.id = 'inline-color-palette';
+        document.body.appendChild(inlinePalette);
+
+        function showInlinePaletteForTask(task) {
+            if (!task || !task.isConnected) {
+                hideInlinePalette();
+                return;
+            }
+
+            inlinePalette.innerHTML = '';
+
+            colors.forEach(color => {
+                const btn = document.createElement('div');
+                btn.className = 'inline-color-btn';
+                btn.style.backgroundColor = color;
+
+                if (task.style.backgroundColor === color) {
+                    btn.classList.add('active');
+                }
+
+                btn.onmousedown = e => e.stopPropagation();
+
+                btn.onclick = e => {
+                    e.stopPropagation();
+                    applyColorToTask(task, color);
+                    showInlinePaletteForTask(task);
+                };
+
+                inlinePalette.appendChild(btn);
+            });
+
+            inlinePalette.style.display = 'flex';
+            positionInlinePalette(task);
+        }
+
+        function positionInlinePalette(task = document.querySelector('.task.selected')) {
+            if (!task || inlinePalette.style.display === 'none') return;
+
+            const rect = task.getBoundingClientRect();
+
+            let left = rect.left;
+            let top = rect.bottom + 6;
+
+            const paletteWidth = inlinePalette.offsetWidth;
+            const paletteHeight = inlinePalette.offsetHeight;
+
+            left = Math.max(8, Math.min(left, window.innerWidth - paletteWidth - 8));
+
+            if (top + paletteHeight > window.innerHeight - 8) {
+                top = rect.top - paletteHeight - 6;
+            }
+
+            top = Math.max(8, top);
+
+            inlinePalette.style.left = `${left}px`;
+            inlinePalette.style.top = `${top}px`;
+        }
+
+        function hideInlinePalette() {
+            inlinePalette.style.display = 'none';
+        }
+
+        function buildGridFramework() {
+            const header = document.getElementById('sticky-months-header');
+            const canvas = document.getElementById('grid-canvas');
+
+            header.innerHTML = '';
+            const scheduledTasks = Array.from(canvas.querySelectorAll('.task.on-timeline'));
+            canvas.innerHTML = '';
+
+            monthEntries.forEach(entry => {
+                const isContext = entry.segment !== 'active';
+
+                const mHead = document.createElement('div');
+                mHead.className = 'header-month' + (isContext ? ' context-month' : '');
+                mHead.style.width = baseMonthWidth + 'px';
+                mHead.innerText = entry.label;
+                header.appendChild(mHead);
+
+                const mCol = document.createElement('div');
+                mCol.className = 'grid-month-column' + (isContext ? ' context-month' : '');
+                mCol.style.width = baseMonthWidth + 'px';
+                canvas.appendChild(mCol);
+            });
+
+            scheduledTasks.forEach(task => {
+                canvas.appendChild(task);
+
+                if (task.dataset.startPct) {
+                    const totalWidth = baseMonthWidth * TOTAL_MONTHS;
+                    task.style.left = (parseFloat(task.dataset.startPct) * totalWidth) + 'px';
+                    task.style.width = (parseFloat(task.dataset.durationPct) * totalWidth) + 'px';
+                }
+            });
+        }
+
+        function clearAllTaskElements() {
+            document.querySelectorAll('.task').forEach(task => {
+                if (task.classList.contains('on-timeline')) {
+                    taskResizeObserver.unobserve(task);
+                }
+                task.remove();
+            });
+
+            hideInlinePalette();
+        }
+
+        const taskResizeObserver = new ResizeObserver(entries => {
+            for (let entry of entries) {
+                const task = entry.target;
+
+                if (task.classList.contains('on-timeline')) {
+                    const totalWidth = baseMonthWidth * TOTAL_MONTHS;
+                    task.dataset.durationPct = task.offsetWidth / totalWidth;
+                    task.dataset.timelineMonths = TOTAL_MONTHS;
+                    saveAllTasks();
+                    renderMacroWheel();
+                    positionInlinePalette();
+                }
+            }
+        });
+
+        function triggerRename(task) {
+            const newName = prompt("Rename task:", task.innerText);
+
+            if (newName !== null && newName.trim() !== "") {
+                task.innerText = newName.trim();
+                saveAllTasks();
+            }
+        }
+
+        function createTaskElement(id, name, color, isOnTimeline, left, top, width, startPct = 0, durPct = 0) {
+            const task = document.createElement('div');
+            task.className = 'task';
+            task.id = id;
+            task.innerText = name;
+            task.style.backgroundColor = color;
+            task.draggable = true;
+            task.ondragstart = drag;
+
+            task.dataset.startPct = startPct;
+            task.dataset.durationPct = durPct;
+            task.dataset.timelineMonths = TOTAL_MONTHS;
+
+            if (isOnTimeline) {
+                task.classList.add('on-timeline');
+                task.style.position = 'absolute';
+                task.style.left = left;
+                task.style.top = top;
+                task.style.width = width;
+                taskResizeObserver.observe(task);
+            }
+
+            let isDraggingTask = false;
+
+            task.addEventListener('mousedown', () => {
+                isDraggingTask = false;
+            });
+
+            task.addEventListener('mousemove', () => {
+                isDraggingTask = true;
+            });
+
+            task.onclick = function(e) {
+                if (!isDraggingTask) {
+                    e.stopPropagation();
+
+                    document.querySelectorAll('.task.selected').forEach(t => t.classList.remove('selected'));
+                    this.classList.add('selected');
+
+                    showInlinePaletteForTask(this);
+                }
+            };
+
+            task.ondblclick = function(e) {
+                e.stopPropagation();
+                triggerRename(this);
+            };
+
+            return task;
+        }
+
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.task') && !e.target.closest('#inline-color-palette')) {
+                document.querySelectorAll('.task.selected').forEach(t => t.classList.remove('selected'));
+                hideInlinePalette();
+            }
+        });
+
+        document.addEventListener('keydown', function(e) {
+            if (e.target.tagName.toLowerCase() === 'input') return;
+
+            const activeTask = document.querySelector('.task.selected');
+            if (!activeTask) return;
+
+            if (e.key === 'Delete' || e.key === 'Backspace') {
+                e.preventDefault();
+                activeTask.remove();
+                hideInlinePalette();
+                saveAllTasks();
+                renderMacroWheel();
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                triggerRename(activeTask);
+                positionInlinePalette(activeTask);
+            }
+        });
+
+        function handleAddTaskClick() {
+            const input = document.getElementById('task-name');
+            const name = input.value.trim();
+
+            if (!name) return;
+
+            taskCounter++;
+            const taskId = 'task-' + taskCounter;
+            const taskEl = createTaskElement(taskId, name, currentColor, false);
+
+            document.getElementById('unscheduled-list').appendChild(taskEl);
+
+            input.value = '';
+            saveAllTasks();
+        }
+
+        document.getElementById('task-name').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') handleAddTaskClick();
+        });
+
+        function allowDrop(ev) {
+            ev.preventDefault();
+        }
+
+        function drag(ev) {
+            hideInlinePalette();
+
+            ev.dataTransfer.setData("text", ev.target.id);
+
+            const rect = ev.target.getBoundingClientRect();
+            ev.dataTransfer.setData("offsetX", ev.clientX - rect.left);
+        }
+
+        function drop(ev) {
+            ev.preventDefault();
+
+            const data = ev.dataTransfer.getData("text");
+            let task = document.getElementById(data);
+
+            if (!task) return;
+
+            const canvas = document.getElementById('grid-canvas');
+            const list = document.getElementById('unscheduled-list');
+
+            const isListDrop = ev.target.id === 'unscheduled-list' || ev.target.closest('#unscheduled-list');
+            const isTimelineDrop = ev.target.id === 'grid-canvas' || ev.target.closest('#grid-canvas');
+
+            if (ev.ctrlKey) {
+                taskCounter++;
+
+                const clonedTask = createTaskElement(
+                    'task-' + taskCounter,
+                    task.innerText,
+                    task.style.backgroundColor,
+                    false
+                );
+
+                if (task.classList.contains('on-timeline')) {
+                    clonedTask.style.width = task.style.width;
+                    clonedTask.dataset.durationPct = task.dataset.durationPct;
+                }
+
+                task = clonedTask;
+            }
+
+            if (isListDrop) {
+                task.classList.remove('on-timeline');
+                taskResizeObserver.unobserve(task);
+
+                task.style.position = 'static';
+                task.style.left = 'auto';
+                task.style.top = 'auto';
+                task.style.width = 'auto';
+
+                list.appendChild(task);
+
+                saveAllTasks();
+                renderMacroWheel();
+                return;
+            }
+
+            if (isTimelineDrop) {
+                const totalWidth = baseMonthWidth * TOTAL_MONTHS;
+
+                if (!task.classList.contains('on-timeline')) {
+                    task.classList.add('on-timeline');
+
+                    if (!task.style.width || task.style.width === 'auto') {
+                        task.style.width = baseMonthWidth + 'px';
+                    }
+
+                    taskResizeObserver.observe(task);
+                }
+
+                // Important bug fix:
+                // tasks dragged from the pool had inline position: static;
+                // this must be reset, otherwise the task exists but is not visible correctly on the grid.
+                task.style.position = 'absolute';
+                task.style.margin = '0';
+
+                canvas.appendChild(task);
+
+                const gridRect = canvas.getBoundingClientRect();
+                let offsetX = parseInt(ev.dataTransfer.getData("offsetX")) || 0;
+                let x = ev.clientX - gridRect.left - offsetX;
+
+                let taskWidth = parseFloat(task.style.width) || baseMonthWidth;
+
+                if (x < 0) x = 0;
+                if (x > totalWidth - taskWidth) x = totalWidth - taskWidth;
+
+                let y = Math.floor((ev.clientY - gridRect.top) / 48) * 48 + 8;
+                if (y < 0) y = 8;
+
+                task.style.left = x + 'px';
+                task.style.top = y + 'px';
+
+                task.dataset.startPct = x / totalWidth;
+                task.dataset.durationPct = taskWidth / totalWidth;
+                task.dataset.timelineMonths = TOTAL_MONTHS;
+
+                saveAllTasks();
+                syncViewportWithWheel();
+                renderMacroWheel();
+            }
+        }
+
+        document.addEventListener('mouseup', function(e) {
+            if (e.target.classList.contains('on-timeline')) {
+                const totalWidth = baseMonthWidth * TOTAL_MONTHS;
+                e.target.dataset.startPct = parseFloat(e.target.style.left) / totalWidth;
+                e.target.dataset.timelineMonths = TOTAL_MONTHS;
+                saveAllTasks();
+                renderMacroWheel();
+                positionInlinePalette();
+            }
+        });
+
+        scrollContainer.addEventListener('wheel', function(e) {
+            if (e.ctrlKey || e.metaKey) {
+                e.preventDefault();
+
+                const totalWidthBefore = baseMonthWidth * TOTAL_MONTHS;
+                const mouseXOnGrid = e.clientX - document.getElementById('grid-canvas').getBoundingClientRect().left;
+                const pctX = mouseXOnGrid / totalWidthBefore;
+
+                if (e.deltaY < 0) {
+                    baseMonthWidth = Math.min(getMaxMonthWidth(), baseMonthWidth + 15);
+                } else {
+                    baseMonthWidth = Math.max(getMinMonthWidth(), baseMonthWidth - 15);
+                }
+
+                buildGridFramework();
+
+                const totalWidthAfter = baseMonthWidth * TOTAL_MONTHS;
+                const newMouseX = totalWidthAfter * pctX;
+
+                scrollContainer.scrollLeft = newMouseX - (e.clientX - scrollContainer.getBoundingClientRect().left);
+
+                syncViewportWithWheel();
+                positionInlinePalette();
+            } else {
+                if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+                    e.preventDefault();
+                    scrollContainer.scrollLeft += e.deltaY;
+                }
+            }
+        }, { passive: false });
+
+        scrollContainer.addEventListener('scroll', function() {
+            syncViewportWithWheel();
+            positionInlinePalette();
+        });
+
+        document.getElementById('unscheduled-list').addEventListener('scroll', function() {
+            positionInlinePalette();
+        });
+
+        window.addEventListener('resize', function() {
+            let changed = false;
+
+            if (baseMonthWidth < getMinMonthWidth()) {
+                baseMonthWidth = getMinMonthWidth();
+                changed = true;
+            }
+
+            if (baseMonthWidth > getMaxMonthWidth()) {
+                baseMonthWidth = getMaxMonthWidth();
+                changed = true;
+            }
+
+            if (changed) {
+                buildGridFramework();
+            }
+
+            syncViewportWithWheel();
+            renderMacroWheel();
+            positionInlinePalette();
+            positionWheelControls();
+        });
+
+        function resetGridToFullYear() {
+            baseMonthWidth = getResetMonthWidth();
+
+            buildGridFramework();
+
+            scrollContainer.scrollLeft = ACTIVE_START_INDEX * baseMonthWidth;
+
+            syncViewportWithWheel();
+            renderMacroWheel();
+            positionInlinePalette();
+            positionWheelControls();
+        }
+
+        function positionWheelControls() {
+            const wrapper = document.getElementById('wheel-wrapper');
+            const resetBtn = document.getElementById('wheel-reset-btn');
+            const chartControls = document.getElementById('chart-controls');
+
+            if (!wrapper || !resetBtn || !chartControls) return;
+
+            const w = wrapper.clientWidth;
+            const h = wrapper.clientHeight;
+
+            const squareSize = Math.min(w, h);
+            const offsetX = (w - squareSize) / 2;
+            const offsetY = (h - squareSize) / 2;
+            const padding = 10;
+
+            resetBtn.style.left = `${offsetX + squareSize - resetBtn.offsetWidth - padding}px`;
+            resetBtn.style.top = `${offsetY + padding}px`;
+
+            chartControls.style.left = `${offsetX + padding}px`;
+            chartControls.style.top = `${offsetY + padding}px`;
+        }
+
+        function syncViewportWithWheel() {
+            const sl = scrollContainer.scrollLeft;
+            const cw = scrollContainer.clientWidth;
+
+            const visibleStartMonth = sl / baseMonthWidth;
+            const visibleEndMonth = visibleStartMonth + (cw / baseMonthWidth);
+
+            const centerMonth = (visibleStartMonth + visibleEndMonth) / 2;
+            const centerAngle = (centerMonth - ACTIVE_START_INDEX) * 30;
+            const rotationDegrees = -centerAngle;
+
+            document.getElementById('wheel-rotating-group').style.transform = `rotate(${rotationDegrees}deg)`;
+
+            renderSegmentedViewportOverlay(visibleStartMonth, visibleEndMonth, rotationDegrees);
+        }
+
+        function polarToCartesian(cx, cy, r, angleInDegrees) {
+            const rad = (angleInDegrees - 90) * Math.PI / 180.0;
+
+            return {
+                x: cx + (r * Math.cos(rad)),
+                y: cy + (r * Math.sin(rad))
+            };
+        }
+
+        function createSvgArcPath(cx, cy, r, startAngle, endAngle) {
+            const start = polarToCartesian(cx, cy, r, endAngle);
+            const end = polarToCartesian(cx, cy, r, startAngle);
+            const largeArc = (endAngle - startAngle) <= 180 ? "0" : "1";
+
+            return `M ${start.x} ${start.y} A ${r} ${r} 0 ${largeArc} 0 ${end.x} ${end.y}`;
+        }
+
+        function createAnnularSectorPath(innerR, outerR, startAngle, endAngle) {
+            let sweep = endAngle - startAngle;
+
+            if (sweep <= 0) return '';
+
+            if (sweep >= 359.99) {
+                const a0 = startAngle;
+                const a1 = startAngle + 180;
+                const a2 = startAngle + 359.99;
+
+                const o0 = polarToCartesian(0, 0, outerR, a0);
+                const o1 = polarToCartesian(0, 0, outerR, a1);
+                const o2 = polarToCartesian(0, 0, outerR, a2);
+
+                const i0 = polarToCartesian(0, 0, innerR, a0);
+                const i1 = polarToCartesian(0, 0, innerR, a1);
+                const i2 = polarToCartesian(0, 0, innerR, a2);
+
+                return `
+                    M ${o0.x} ${o0.y}
+                    A ${outerR} ${outerR} 0 1 1 ${o1.x} ${o1.y}
+                    A ${outerR} ${outerR} 0 1 1 ${o2.x} ${o2.y}
+                    L ${i2.x} ${i2.y}
+                    A ${innerR} ${innerR} 0 1 0 ${i1.x} ${i1.y}
+                    A ${innerR} ${innerR} 0 1 0 ${i0.x} ${i0.y}
+                    Z
+                `;
+            }
+
+            const largeArc = sweep > 180 ? "1" : "0";
+
+            const outerStart = polarToCartesian(0, 0, outerR, startAngle);
+            const outerEnd = polarToCartesian(0, 0, outerR, endAngle);
+            const innerEnd = polarToCartesian(0, 0, innerR, endAngle);
+            const innerStart = polarToCartesian(0, 0, innerR, startAngle);
+
+            return `
+                M ${outerStart.x} ${outerStart.y}
+                A ${outerR} ${outerR} 0 ${largeArc} 1 ${outerEnd.x} ${outerEnd.y}
+                L ${innerEnd.x} ${innerEnd.y}
+                A ${innerR} ${innerR} 0 ${largeArc} 0 ${innerStart.x} ${innerStart.y}
+                Z
+            `;
+        }
+
+        function renderSegmentedViewportOverlay(visibleStartMonth, visibleEndMonth, rotationDegrees) {
+            const overlaySvg = document.getElementById('wheel-static-overlay');
+            overlaySvg.innerHTML = '';
+
+            const segments = [
+                {
+                    start: 0,
+                    end: ACTIVE_START_INDEX,
+                    band: overlayBands.inner,
+                    fill: 'rgba(148, 163, 184, 0.045)',
+                    stroke: 'rgba(148, 163, 184, 0.09)'
+                },
+                {
+                    start: ACTIVE_START_INDEX,
+                    end: ACTIVE_END_INDEX,
+                    band: overlayBands.main,
+                    fill: 'rgba(15, 23, 42, 0.045)',
+                    stroke: 'rgba(15, 23, 42, 0.12)'
+                },
+                {
+                    start: ACTIVE_END_INDEX,
+                    end: TOTAL_MONTHS,
+                    band: overlayBands.outer,
+                    fill: 'rgba(148, 163, 184, 0.045)',
+                    stroke: 'rgba(148, 163, 184, 0.09)'
+                }
+            ];
+
+            segments.forEach(seg => {
+                const s = Math.max(visibleStartMonth, seg.start);
+                const e = Math.min(visibleEndMonth, seg.end);
+
+                if (e <= s) return;
+
+                const startAngle = ((s - ACTIVE_START_INDEX) * 30) + rotationDegrees;
+                const endAngle = ((e - ACTIVE_START_INDEX) * 30) + rotationDegrees;
+
+                const pathData = createAnnularSectorPath(
+                    seg.band.inner,
+                    seg.band.outer,
+                    startAngle,
+                    endAngle
+                );
+
+                if (!pathData) return;
+
+                const band = document.createElementNS("http://www.w3.org/2000/svg", "path");
+                band.setAttribute("d", pathData);
+                band.setAttribute("fill", seg.fill);
+                band.setAttribute("stroke", seg.stroke);
+                band.setAttribute("stroke-width", "1");
+                overlaySvg.appendChild(band);
+            });
+
+            const indicatorLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
+            indicatorLine.setAttribute("x1", 0);
+            indicatorLine.setAttribute("y1", -currentViewBoxRadius + 10);
+            indicatorLine.setAttribute("x2", 0);
+            indicatorLine.setAttribute("y2", -currentViewBoxRadius);
+            indicatorLine.setAttribute("stroke", "#0f172a");
+            indicatorLine.setAttribute("stroke-width", "2");
+            overlaySvg.appendChild(indicatorLine);
+        }
+
+        function getAcademicTodayPct() {
+            const now = new Date();
+            const year = now.getFullYear();
+
+            const academicStart = now.getMonth() >= 6
+                ? new Date(year, 6, 1)
+                : new Date(year - 1, 6, 1);
+
+            const academicEnd = new Date(academicStart.getFullYear() + 1, 6, 1);
+
+            return (now - academicStart) / (academicEnd - academicStart);
+        }
+
+        function drawContextGuideArc(group, radius, startAngle, endAngle) {
+            const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+            path.setAttribute("d", createSvgArcPath(0, 0, radius, startAngle, endAngle));
+            path.setAttribute("stroke", "rgba(148, 163, 184, 0.08)");
+            path.setAttribute("stroke-width", "2");
+            path.setAttribute("fill", "none");
+            path.setAttribute("stroke-linecap", "round");
+            group.appendChild(path);
+        }
+
+        function addMonthLabel(group, label, radius, angle, fill = "#94a3b8") {
+            const textPos = polarToCartesian(0, 0, radius, angle);
+
+            const tNode = document.createElementNS("http://www.w3.org/2000/svg", "text");
+            tNode.setAttribute("x", textPos.x);
+            tNode.setAttribute("y", textPos.y);
+            tNode.setAttribute("text-anchor", "middle");
+            tNode.setAttribute("dominant-baseline", "middle");
+            tNode.setAttribute("fill", fill);
+            tNode.setAttribute("font-size", "7.5px");
+            tNode.setAttribute("font-weight", "bold");
+            tNode.setAttribute("transform", `rotate(${angle}, ${textPos.x}, ${textPos.y})`);
+            tNode.textContent = label;
+
+            group.appendChild(tNode);
+        }
+
+        function renderTaskArcAtRadius(group, task, segStartMonth, segEndMonth, radius, strokeWidth, opacity) {
+            const startMonth = parseFloat(task.dataset.startPct || 0) * TOTAL_MONTHS;
+            const durationMonths = parseFloat(task.dataset.durationPct || 0) * TOTAL_MONTHS;
+            const endMonth = startMonth + durationMonths;
+
+            const clippedStart = Math.max(startMonth, segStartMonth);
+            const clippedEnd = Math.min(endMonth, segEndMonth);
+
+            if (clippedEnd <= clippedStart) return;
+
+            const startAngle = (clippedStart - ACTIVE_START_INDEX) * 30;
+            let endAngle = (clippedEnd - ACTIVE_START_INDEX) * 30;
+
+            if (endAngle - startAngle >= 360) {
+                endAngle = startAngle + 359.99;
+            }
+
+            const taskArc = document.createElementNS("http://www.w3.org/2000/svg", "path");
+            taskArc.setAttribute("d", createSvgArcPath(0, 0, radius, startAngle, endAngle));
+            taskArc.setAttribute("stroke", task.style.backgroundColor);
+            taskArc.setAttribute("stroke-opacity", opacity);
+            taskArc.setAttribute("stroke-width", strokeWidth);
+            taskArc.setAttribute("fill", "none");
+            taskArc.setAttribute("stroke-linecap", "round");
+
+            group.appendChild(taskArc);
+        }
+
+        function renderMacroWheel() {
+            const group = document.getElementById('wheel-rotating-group');
+            group.innerHTML = '';
+
+            const activeTasks = Array.from(document.querySelectorAll('#grid-canvas .task.on-timeline'));
+
+            let maxTopPx = 0;
+            let maxMainTaskRadius = 55;
+
+            activeTasks.forEach(task => {
+                const topPx = parseFloat(task.style.top) || 0;
+                maxTopPx = Math.max(maxTopPx, topPx);
+
+                const mainRadius = 55 + (topPx * 0.4);
+                maxMainTaskRadius = Math.max(maxMainTaskRadius, mainRadius);
+            });
+
+            const innerContextMinRadius = 24;
+            const innerContextMaxRadius = 42;
+
+            const mainLabelRadius = Math.max(135, maxMainTaskRadius + 42);
+            const mainOuterSafeRadius = Math.max(95, maxMainTaskRadius + 14);
+
+            const outerContextMinRadius = mainOuterSafeRadius + 24;
+            const outerContextMaxRadius = mainOuterSafeRadius + 42;
+
+            overlayBands = {
+                inner: {
+                    inner: Math.max(8, innerContextMinRadius - 7),
+                    outer: innerContextMaxRadius + 7
+                },
+                main: {
+                    inner: 45,
+                    outer: Math.max(70, maxMainTaskRadius + 12)
+                },
+                outer: {
+                    inner: outerContextMinRadius - 7,
+                    outer: outerContextMaxRadius + 7
+                }
+            };
+
+            currentViewBoxRadius = Math.max(150, outerContextMaxRadius + 34);
+
+            const paddingFactor = 1.28;
+            const viewBoxRadius = currentViewBoxRadius * paddingFactor;
+            const viewBoxStr = `-${viewBoxRadius} -${viewBoxRadius} ${viewBoxRadius * 2} ${viewBoxRadius * 2}`;
+
+            document.getElementById('wheel-svg').setAttribute("viewBox", viewBoxStr);
+            document.getElementById('wheel-static-overlay').setAttribute("viewBox", viewBoxStr);
+
+            for (let i = 0; i < ACTIVE_MONTHS; i++) {
+                const angle = i * 30;
+                const targetPos = polarToCartesian(0, 0, mainLabelRadius - 20, angle);
+
+                const gridRay = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                gridRay.setAttribute("x1", 0);
+                gridRay.setAttribute("y1", 0);
+                gridRay.setAttribute("x2", targetPos.x);
+                gridRay.setAttribute("y2", targetPos.y);
+                gridRay.setAttribute("stroke", "#f1f5f9");
+                gridRay.setAttribute("stroke-width", "1.5");
+                group.appendChild(gridRay);
+
+                addMonthLabel(group, activeMonthLabels[i], mainLabelRadius - 8, angle + 15, "#94a3b8");
+            }
+
+            drawContextGuideArc(group, (innerContextMinRadius + innerContextMaxRadius) / 2, -90, 0);
+            drawContextGuideArc(group, (outerContextMinRadius + outerContextMaxRadius) / 2, 360, 450);
+
+            activeTasks.forEach(task => {
+                const topPx = parseFloat(task.style.top) || 0;
+                const ratio = maxTopPx > 0 ? topPx / maxTopPx : 0;
+
+                const mainRadius = 55 + (topPx * 0.4);
+
+                const innerRadius = innerContextMinRadius + (ratio * (innerContextMaxRadius - innerContextMinRadius));
+                const outerRadius = outerContextMinRadius + (ratio * (outerContextMaxRadius - outerContextMinRadius));
+
+                renderTaskArcAtRadius(group, task, 0, ACTIVE_START_INDEX, innerRadius, 3, 0.28);
+                renderTaskArcAtRadius(group, task, ACTIVE_START_INDEX, ACTIVE_END_INDEX, mainRadius, 12, 0.72);
+                renderTaskArcAtRadius(group, task, ACTIVE_END_INDEX, TOTAL_MONTHS, outerRadius, 3, 0.28);
+            });
+
+            const todayPct = getAcademicTodayPct();
+            const todayAngle = todayPct * 360;
+
+            const todayMarker = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
+            const tip = polarToCartesian(0, 0, mainLabelRadius - 20, todayAngle);
+            const left = polarToCartesian(0, 0, mainLabelRadius - 11, todayAngle - 2);
+            const right = polarToCartesian(0, 0, mainLabelRadius - 11, todayAngle + 2);
+
+            todayMarker.setAttribute("points", `${tip.x},${tip.y} ${left.x},${left.y} ${right.x},${right.y}`);
+            todayMarker.setAttribute("fill", "#000000");
+            group.appendChild(todayMarker);
+
+            const centerHub = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+            centerHub.setAttribute("cx", 0);
+            centerHub.setAttribute("cy", 0);
+            centerHub.setAttribute("r", "18");
+            centerHub.setAttribute("fill", "#ffffff");
+            centerHub.setAttribute("stroke", "#e2e8f0");
+            group.appendChild(centerHub);
+
+            positionWheelControls();
+            syncViewportWithWheel();
+        }
+
+        function saveAllTasks() {
+            if (!activeChartId) return;
+
+            const allTasks = serializeCurrentTasks();
+
+            localStorage.setItem(getDataKey(activeChartId), JSON.stringify(allTasks));
+            localStorage.setItem(getCounterKey(activeChartId), taskCounter);
+        }
+
+        function loadAllTasks() {
+            clearAllTaskElements();
+
+            const savedData = localStorage.getItem(getDataKey(activeChartId));
+            const savedCounter = localStorage.getItem(getCounterKey(activeChartId));
+
+            taskCounter = savedCounter ? parseInt(savedCounter, 10) : 0;
+
+            baseMonthWidth = Math.max(baseMonthWidth, getMinMonthWidth());
+            baseMonthWidth = Math.min(baseMonthWidth, getMaxMonthWidth());
+
+            buildGridFramework();
+
+            if (!savedData) {
+                renderMacroWheel();
+                syncViewportWithWheel();
+                positionWheelControls();
+                return;
+            }
+
+            const allTasks = JSON.parse(savedData).map(normalizeTaskData);
+
+            allTasks.forEach(t => {
+                const taskEl = createTaskElement(
+                    t.id,
+                    t.name,
+                    t.color,
+                    t.onTimeline,
+                    t.left,
+                    t.top,
+                    t.width,
+                    t.startPct,
+                    t.durationPct
+                );
+
+                const match = String(t.id || '').match(/task-(\d+)/);
+                if (match) taskCounter = Math.max(taskCounter, parseInt(match[1], 10));
+
+                if (t.onTimeline) {
+                    document.getElementById('grid-canvas').appendChild(taskEl);
+                } else {
+                    document.getElementById('unscheduled-list').appendChild(taskEl);
+                }
+            });
+
+            const totalWidth = baseMonthWidth * TOTAL_MONTHS;
+
+            document.querySelectorAll('#grid-canvas .task.on-timeline').forEach(task => {
+                task.style.left = (parseFloat(task.dataset.startPct) * totalWidth) + 'px';
+                task.style.width = (parseFloat(task.dataset.durationPct) * totalWidth) + 'px';
+                task.dataset.timelineMonths = TOTAL_MONTHS;
+            });
+
+            setTimeout(() => {
+                syncViewportWithWheel();
+                renderMacroWheel();
+                positionWheelControls();
+            }, 100);
+        }
+
+        window.onload = initCharts;
+    </script>
+</body>
+</html>
