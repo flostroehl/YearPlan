@@ -14,4 +14,4 @@ You can use, host, modify, or download this tool for offline use for *free* unde
 If your company wants to deploy this calendar display internally, integrate it into a closed-source product, or modify it without sharing the source code publicly, *you require a Commercial License*.
 
 For commercial licensing options, contact:
- **flo.stroehl@gmail.com*
+ *flo.stroehl@gmail.com*
